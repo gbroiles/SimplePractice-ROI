@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<!--
+MIT License
+
+Copyright (c) 2026 Greg Broiles
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Authorization Form Generator</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --ink: #1b1d21;
+    --muted: #61656d;
+    --line: #d8dbe0;
+    --accent: #2f5fd0;
+    --accent-ink: #ffffff;
+    --error: #b3261e;
+    --error-bg: #fdecea;
+    --ok: #1e6b3a;
+    --preview-bg: #fbfbfc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --panel: #1f2228;
+      --ink: #e7e9ec;
+      --muted: #9aa0a8;
+      --line: #363a42;
+      --accent: #6f9bff;
+      --accent-ink: #10131a;
+      --error: #ff8a80;
+      --error-bg: #3a1f1d;
+      --ok: #7fd39b;
+      --preview-bg: #191c21;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1rem 4rem;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; }
+  header { margin-bottom: 1.5rem; }
+  h1 { font-size: 1.4rem; margin: 0 0 .35rem; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0; }
+  .cols { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 1.25rem; align-items: start; }
+  @media (max-width: 800px) { .cols { grid-template-columns: minmax(0,1fr); } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+  .panel h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 1rem; font-weight: 600; }
+  .field { margin-bottom: 1.15rem; }
+  .field > label, fieldset legend { display: block; font-weight: 600; font-size: .92rem; margin-bottom: .35rem; }
+  input[type=text], input[type=date], textarea {
+    width: 100%;
+    padding: .55rem .65rem;
+    font: inherit;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  textarea { resize: vertical; min-height: 5.5rem; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  fieldset { border: 1px solid var(--line); border-radius: 6px; padding: .75rem .9rem .3rem; margin: 0; }
+  fieldset legend { padding: 0 .35rem; margin-bottom: 0; }
+  .opt { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .55rem; font-size: .95rem; }
+  .opt input { margin-top: .3rem; flex: none; }
+  .field.invalid input, .field.invalid textarea, .field.invalid fieldset { border-color: var(--error); }
+  .hint { color: var(--muted); font-size: .82rem; margin-top: .3rem; }
+  .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-top: 1rem; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    padding: .6rem 1.15rem;
+    border-radius: 6px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button:hover { filter: brightness(1.06); }
+  pre#preview {
+    background: var(--preview-bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: .9rem;
+    margin: 0;
+    font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 34rem;
+    overflow: auto;
+  }
+  #errors {
+    background: var(--error-bg);
+    color: var(--error);
+    border: 1px solid var(--error);
+    border-radius: 6px;
+    padding: .7rem .9rem;
+    margin-top: 1rem;
+    font-size: .9rem;
+  }
+  #errors ul { margin: .4rem 0 0; padding-left: 1.2rem; }
+  #status { font-size: .85rem; color: var(--muted); margin-top: .75rem; }
+  #status.good { color: var(--ok); }
+  .optional { font-weight: 400; color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- The template: To revise the wording, edit this block. type="text/plain" means it is never executed
+     or HTML-parsed. -->
+<script id="defaultTemplate" type="text/plain">
+Authorization to Release Confidential Information
+
+I, [Name of client], hereby authorize [Provider: Provider Name] to release confidential information obtained during the course of my treatment to [Recipient].
+
+This Authorization permits the release of the following information:
+[Checkboxes: Diagnosis, Treatment, Plan Progress to Date, Prognosis, Clinical Test Results, Dates of Treatment, Any and All Information Necessary]
+
+I authorize the release of the information described above for the following purpose(s):
+[Purpose]
+
+I understand that I have a right to receive a copy of this Authorization, and that any modification or revocation of this Authorization must be in writing.
+
+The Authorization shall remain valid until: [Expiration date](“Expiration Date”).
+
+
+</script>
+
+<div class="wrap">
+  <header>
+    <h1>Authorization Form Generator</h1>
+    <p class="sub">Fill in the fields, review the preview, then generate and save the text file. Works offline &mdash; nothing leaves this page.</p>
+  </header>
+
+  <div class="cols">
+    <form class="panel" id="formPanel" novalidate>
+      <h2>Form fields</h2>
+      <div id="fields"></div>
+
+      <div class="field">
+        <label for="filename">Save as</label>
+        <input type="text" id="filename" spellcheck="false">
+        <div class="hint">Your browser decides where this lands &mdash; choose the folder in its save dialog.</div>
+      </div>
+
+      <div class="row">
+        <button type="submit" class="primary" id="generate">Generate &amp; download</button>
+        <button type="button" id="copy">Copy to clipboard</button>
+      </div>
+
+      <div id="errors" hidden></div>
+      <div id="status"></div>
+    </form>
+
+    <section class="panel">
+      <h2>Preview</h2>
+      <pre id="preview"></pre>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- template source -----------------------------------------------------
+
+  var template = normalize(document.getElementById('defaultTemplate').textContent);
+  var fields = [];
+
+  function normalize(text) {
+    // Strip the single newline introduced by putting the content on the line
+    // after the opening <script> tag, and collapse CRLF to LF for processing.
+    return text.replace(/\r\n?/g, '\n').replace(/^\n/, '');
+  }
+
+  // ---- parsing -------------------------------------------------------------
+
+  var PLACEHOLDER = /\[([^\]\n]+)\]/g;
+  var DATEISH = /\bdates?\b|\bexpir/i;
+  var CHECKBOX_KEYWORD = /^checkboxe?s?$/i;
+  var ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+  // Turn "[Checkboxes: a, b, c]", "[Provider: Some Name]", "[Expiration date]",
+  // "[Purpose]" etc. into field records.
+  //
+  // Text after a colon is the field's default value, EXCEPT when the label is the
+  // reserved keyword "Checkboxes" — there it is the comma-separated option list.
+  // A placeholder alone on its line is treated as long-form input.
+  function parseTemplate(text) {
+    var lines = text.split('\n');
+    var found = [];
+    var seen = Object.create(null);
+
+    lines.forEach(function (line, lineNo) {
+      var m;
+      PLACEHOLDER.lastIndex = 0;
+      while ((m = PLACEHOLDER.exec(line)) !== null) {
+        var raw = m[0];
+        if (seen[raw]) continue;
+
+        var inner = m[1];
+        var isolated = line.trim() === raw;
+        var indent = isolated ? line.slice(0, line.indexOf('[')) : '';
+        var colon = inner.indexOf(':');
+        var label = (colon > -1 ? inner.slice(0, colon) : inner).trim();
+        var rest = colon > -1 ? inner.slice(colon + 1).trim() : '';
+        var field;
+
+        if (CHECKBOX_KEYWORD.test(label) && rest) {
+          field = {
+            kind: 'checkboxes',
+            label: label,
+            legend: precedingText(lines, lineNo) || label,
+            options: rest.split(',').map(trim).filter(nonEmpty)
+          };
+        } else if (DATEISH.test(label)) {
+          // An explicit YYYY-MM-DD default wins; otherwise a date field starts one
+          // year out from today, which is how these authorizations are written.
+          field = { kind: 'date', label: label, value: ISO_DATE.test(rest) ? rest : oneYearOut() };
+        } else if (isolated) {
+          field = { kind: 'textarea', label: label, value: rest };
+        } else {
+          field = { kind: 'text', label: label, value: rest };
+        }
+
+        field.raw = raw;
+        field.isolated = isolated;
+        field.indent = indent;
+        field.id = 'field-' + found.length;
+        found.push(field);
+        seen[raw] = true;
+      }
+    });
+
+    return found;
+  }
+
+  // Nearest non-empty line above a placeholder, used as a friendlier fieldset
+  // legend when the bracket label is just the generic word "Checkboxes".
+  function precedingText(lines, lineNo) {
+    for (var i = lineNo - 1; i >= 0; i--) {
+      var t = lines[i].trim();
+      if (t && !PLACEHOLDER.test(t)) return t.replace(/[:\s]+$/, '');
+      PLACEHOLDER.lastIndex = 0;
+    }
+    return '';
+  }
+
+  function trim(s) { return s.trim(); }
+  function nonEmpty(s) { return s.length > 0; }
+
+  // Local-calendar YYYY-MM-DD, the value format <input type="date"> expects.
+  function isoDate(d) {
+    var p = function (n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  function oneYearOut() {
+    var d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return isoDate(d);
+  }
+
+  // ---- form rendering ------------------------------------------------------
+
+  var fieldsEl = document.getElementById('fields');
+
+  function renderForm() {
+    fieldsEl.textContent = '';
+
+    fields.forEach(function (field) {
+      var wrap = document.createElement('div');
+      wrap.className = 'field';
+      wrap.dataset.for = field.id;
+
+      if (field.kind === 'checkboxes') {
+        var fs = document.createElement('fieldset');
+        var lg = document.createElement('legend');
+        lg.textContent = field.legend;
+        fs.appendChild(lg);
+
+        field.options.forEach(function (opt, i) {
+          var id = field.id + '-' + i;
+          var row = document.createElement('label');
+          row.className = 'opt';
+          row.setAttribute('for', id);
+
+          var box = document.createElement('input');
+          box.type = 'checkbox';
+          box.id = id;
+          box.value = opt;
+          box.dataset.group = field.id;
+          box.addEventListener('change', onInput);
+
+          var span = document.createElement('span');
+          span.textContent = opt;
+
+          row.appendChild(box);
+          row.appendChild(span);
+          fs.appendChild(row);
+        });
+
+        wrap.appendChild(fs);
+      } else {
+        var label = document.createElement('label');
+        label.setAttribute('for', field.id);
+        label.textContent = field.label;
+        if (optional(field)) {
+          var note = document.createElement('span');
+          note.className = 'optional';
+          note.textContent = ' — optional, omitted when blank';
+          label.appendChild(note);
+        }
+        wrap.appendChild(label);
+
+        var input;
+        if (field.kind === 'textarea') {
+          input = document.createElement('textarea');
+          input.rows = 3;
+        } else {
+          input = document.createElement('input');
+          input.type = field.kind === 'date' ? 'date' : 'text';
+        }
+        input.id = field.id;
+        input.value = field.value || '';
+        input.addEventListener('input', onInput);
+        input.addEventListener('change', onInput);
+        wrap.appendChild(input);
+      }
+
+      fieldsEl.appendChild(wrap);
+    });
+  }
+
+  // ---- reading values ------------------------------------------------------
+
+  function readValues() {
+    var values = {};
+    fields.forEach(function (field) {
+      if (field.kind === 'checkboxes') {
+        var picked = [];
+        var boxes = fieldsEl.querySelectorAll('input[data-group="' + field.id + '"]');
+        Array.prototype.forEach.call(boxes, function (b) {
+          if (b.checked) picked.push(b.value);
+        });
+        values[field.id] = picked;
+      } else {
+        var el = document.getElementById(field.id);
+        values[field.id] = el ? el.value : '';
+      }
+    });
+    return values;
+  }
+
+
+  // ---- merging -------------------------------------------------------------
+
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                'August', 'September', 'October', 'November', 'December'];
+
+  // Format a YYYY-MM-DD value without going through Date parsing of the string,
+  // which the spec treats as UTC and which therefore renders a day early in
+  // negative-offset timezones.
+  function formatDate(value) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+    if (!m) return value || '';
+    var month = MONTHS[Number(m[2]) - 1];
+    if (!month) return value;
+    return month + ' ' + Number(m[3]) + ', ' + m[1];
+  }
+
+  var BULLET = '- ';
+
+  // Only the checked options make it into the document, in template order.
+  function selected(field, value) {
+    var picked = value || [];
+    return field.options.filter(function (opt) { return picked.indexOf(opt) > -1; });
+  }
+
+  function renderInline(field, value) {
+    if (field.kind === 'checkboxes') return selected(field, value).join(', ');
+    if (field.kind === 'date') return formatDate(value);
+    return value || '';
+  }
+
+  // The field owning a line, when the placeholder is the whole line.
+  function ownerOfLine(line) {
+    var trimmed = line.trim();
+    for (var i = 0; i < fields.length; i++) {
+      if (fields[i].isolated && trimmed === fields[i].raw) return fields[i];
+    }
+    return null;
+  }
+
+  function merge(text, values) {
+    var lines = text.split('\n');
+    var out = [];
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var owner = ownerOfLine(line);
+
+      // A checkbox placeholder alone on its line becomes a bulleted list of the
+      // checked options, one per line.
+      if (owner && owner.kind === 'checkboxes') {
+        selected(owner, values[owner.id]).forEach(function (opt) {
+          out.push(owner.indent + BULLET + opt);
+        });
+        continue;
+      }
+
+      // A whole-line field left blank drops out of the document, and takes its
+      // lead-in sentence with it — an empty "for the following purpose(s):"
+      // heading would read as an omission rather than a deliberate blank.
+      if (owner && !String(values[owner.id] || '').trim()) {
+        for (var j = out.length - 1; j >= 0; j--) {
+          if (out[j].trim() !== '') { out.splice(j, 1); break; }
+        }
+        // Skip the blank line below it so the surrounding spacing does not double up.
+        if (out.length && !out[out.length - 1].trim() && i + 1 < lines.length && !lines[i + 1].trim()) i++;
+        continue;
+      }
+
+      var merged = line;
+      fields.forEach(function (field) {
+        if (merged.indexOf(field.raw) === -1) return;
+        merged = merged.split(field.raw).join(renderInline(field, values[field.id]));
+      });
+      out.push(merged);
+    }
+
+    return out.join('\n');
+  }
+
+  // ---- validation ----------------------------------------------------------
+
+  // A whole-line field can be left blank — merge() drops its section entirely.
+  function optional(field) {
+    return field.isolated && field.kind !== 'checkboxes';
+  }
+
+  function validate(values) {
+    var missing = [];
+    fields.forEach(function (field) {
+      if (optional(field)) return;
+
+      var empty = field.kind === 'checkboxes'
+        ? (values[field.id] || []).length === 0
+        : !String(values[field.id] || '').trim();
+
+      var wrap = fieldsEl.querySelector('[data-for="' + field.id + '"]');
+      if (wrap) wrap.classList.toggle('invalid', empty);
+      if (empty) missing.push(field.kind === 'checkboxes' ? field.legend : field.label);
+    });
+    return missing;
+  }
+
+  // ---- filename ------------------------------------------------------------
+
+  function today() { return isoDate(new Date()); }
+
+  // "Jane Q. Doe" -> "JQD". Punctuation-only words contribute nothing.
+  function initials(name) {
+    return String(name || '').split(/\s+/).map(function (word) {
+      var letters = word.replace(/[^\p{L}]/gu, '');
+      return letters ? letters.charAt(0).toUpperCase() : '';
+    }).join('');
+  }
+
+  // The field holding the client's name, preferred by label, else the first text field.
+  function clientField() {
+    var text = fields.filter(function (f) { return f.kind === 'text'; });
+    for (var i = 0; i < text.length; i++) {
+      if (/\bclients?\b|\bpatients?\b/i.test(text[i].label)) return text[i];
+    }
+    return text[0] || null;
+  }
+
+  var filenameEl = document.getElementById('filename');
+  var filenameTouched = false;
+  filenameEl.addEventListener('input', function () { filenameTouched = true; });
+
+  // Client initials + ROI + today, e.g. "JQD ROI 2026-08-08.txt". With no name
+  // entered yet the initials part drops out rather than leaving a leading space.
+  function suggestFilename(values) {
+    if (filenameTouched) return;
+    var field = clientField();
+    var parts = [initials(field ? values[field.id] : ''), 'ROI', today()].filter(nonEmpty);
+    filenameEl.value = parts.join(' ') + '.txt';
+  }
+
+  // ---- output --------------------------------------------------------------
+
+  var previewEl = document.getElementById('preview');
+  var errorsEl = document.getElementById('errors');
+  var statusEl = document.getElementById('status');
+
+  function currentText() {
+    return merge(template, readValues());
+  }
+
+  function onInput() {
+    var values = readValues();
+    previewEl.textContent = merge(template, values);
+    suggestFilename(values);
+  }
+
+  function showErrors(missing) {
+    if (!missing.length) {
+      errorsEl.hidden = true;
+      errorsEl.textContent = '';
+      return;
+    }
+    errorsEl.hidden = false;
+    errorsEl.textContent = '';
+    var head = document.createElement('strong');
+    head.textContent = 'Nothing was downloaded — these fields still need a value:';
+    var ul = document.createElement('ul');
+    missing.forEach(function (name) {
+      var li = document.createElement('li');
+      li.textContent = name;
+      ul.appendChild(li);
+    });
+    errorsEl.appendChild(head);
+    errorsEl.appendChild(ul);
+  }
+
+  function setStatus(message, good) {
+    statusEl.textContent = message || '';
+    statusEl.className = good ? 'good' : '';
+  }
+
+  function download(text, filename) {
+    // CRLF so the file opens cleanly in Windows editors as well as everything else.
+    var blob = new Blob([text.replace(/\r?\n/g, '\r\n')], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  document.getElementById('formPanel').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var values = readValues();
+    var missing = validate(values);
+    showErrors(missing);
+
+    if (missing.length) {
+      setStatus('');
+      return;
+    }
+
+    var name = filenameEl.value.trim() || ('ROI ' + today() + '.txt');
+    if (!/\.txt$/i.test(name)) name += '.txt';
+    download(merge(template, values), name);
+    setStatus('Generated ' + name + ' — save it from your browser’s download prompt.', true);
+  });
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var text = currentText();
+    var done = function () { setStatus('Merged text copied to the clipboard.', true); };
+    var fail = function () { setStatus('Could not access the clipboard — select the preview and copy manually.'); };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text) ? done() : fail(); });
+    } else {
+      legacyCopy(text) ? done() : fail();
+    }
+  });
+
+  // The async Clipboard API is unavailable on file:// in some browsers.
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  // ---- boot ----------------------------------------------------------------
+
+  fields = parseTemplate(template);
+  renderForm();
+  onInput();
+  setStatus('');
+})();
+</script>
+</body>
+</html>
